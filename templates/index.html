@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>청약홈 APT 분양정보</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .table-container { overflow-x: auto; }
+        table th, table td { white-space: nowrap; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-blue-700 text-white py-6 shadow-lg">
+        <div class="max-w-full mx-auto px-6">
+            <h1 class="text-2xl font-bold">청약홈 APT 분양정보 상세조회</h1>
+            <p class="text-blue-200 mt-1 text-sm">공공데이터포털 API (getAPTLttotPblancDetail)</p>
+        </div>
+    </header>
+
+    <!-- Search & Stats -->
+    <div class="max-w-full mx-auto px-6 py-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+            <!-- Search -->
+            <form method="get" action="/" class="flex gap-2">
+                <input
+                    type="text"
+                    name="search"
+                    value="{{ search }}"
+                    placeholder="주택명, 지역명, 주소 검색..."
+                    class="border border-gray-300 rounded-lg px-4 py-2 w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input type="hidden" name="per_page" value="{{ per_page }}" />
+                <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition">
+                    검색
+                </button>
+                {% if search %}
+                <a href="/" class="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition">
+                    초기화
+                </a>
+                {% endif %}
+            </form>
+
+            <!-- Stats -->
+            <div class="text-gray-600 text-sm">
+                전체 <span class="font-bold text-blue-700">{{ total_count }}</span>건
+                | {{ page }} / {{ total_pages }} 페이지
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container bg-white rounded-xl shadow-md">
+            <table class="min-w-full text-sm">
+                <thead class="bg-blue-600 text-white">
+                    <tr>
+                        <th class="px-3 py-3 text-left font-semibold">#</th>
+                        {% for col in columns %}
+                        <th class="px-3 py-3 text-left font-semibold">{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for row in rows %}
+                    <tr class="hover:bg-blue-50 transition">
+                        <td class="px-3 py-2 text-gray-500">{{ (page - 1) * per_page + loop.index }}</td>
+                        {% for cell in row %}
+                        <td class="px-3 py-2 text-gray-700">
+                            {% if cell is none %}
+                                <span class="text-gray-300">-</span>
+                            {% elif loop.index == 26 and cell and cell.startswith('http') %}
+                                <a href="{{ cell }}" target="_blank" class="text-blue-600 hover:underline">링크</a>
+                            {% elif loop.index == 35 and cell and cell.startswith('http') %}
+                                <a href="{{ cell }}" target="_blank" class="text-blue-600 hover:underline">공고보기</a>
+                            {% else %}
+                                {{ cell }}
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+
+                    {% if not rows %}
+                    <tr>
+                        <td colspan="{{ columns|length + 1 }}" class="px-6 py-12 text-center text-gray-400 text-lg">
+                            데이터가 없습니다.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <div class="flex justify-center items-center gap-2 mt-6 mb-8 flex-wrap">
+            {% if page > 1 %}
+            <a href="/?page=1&per_page={{ per_page }}&search={{ search }}"
+               class="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 text-sm">&laquo; 처음</a>
+            <a href="/?page={{ page - 1 }}&per_page={{ per_page }}&search={{ search }}"
+               class="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 text-sm">&lsaquo; 이전</a>
+            {% endif %}
+
+            {% set start_page = [page - 4, 1] | max %}
+            {% set end_page = [page + 4, total_pages] | min %}
+
+            {% for p in range(start_page, end_page + 1) %}
+            <a href="/?page={{ p }}&per_page={{ per_page }}&search={{ search }}"
+               class="px-3 py-2 rounded-lg text-sm border
+                      {% if p == page %}bg-blue-600 text-white border-blue-600{% else %}bg-white border-gray-300 hover:bg-gray-100{% endif %}">
+                {{ p }}
+            </a>
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a href="/?page={{ page + 1 }}&per_page={{ per_page }}&search={{ search }}"
+               class="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 text-sm">다음 &rsaquo;</a>
+            <a href="/?page={{ total_pages }}&per_page={{ per_page }}&search={{ search }}"
+               class="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 text-sm">마지막 &raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <footer class="text-center py-4 text-gray-400 text-xs">
+        Data source: 공공데이터포털 - 청약홈 분양정보 조회 서비스 (한국부동산원)
+    </footer>
+</body>
+</html>
