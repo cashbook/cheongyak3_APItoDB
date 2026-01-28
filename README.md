@@ -146,7 +146,185 @@ cheongyak3_APItoDB/
 | 48 | public_house_spclm_applc_apt | 공공주택특별법적용 |
 | 49 | pblanc_url | 모집공고URL |
 
-## 7. 실행 방법
+## 7. API → DB 데이터 수집 과정 상세
+
+데이터 수집은 `fetch_data.py`와 `database.py` 두 파일이 협력하여 처리합니다.
+
+### 7-1. 전체 흐름
+
+```
+fetch_data.py                           database.py
+─────────────                           ───────────
+1) 테이블 생성 요청          →          create_table()
+2) API 1페이지 호출
+3) totalCount로 전체 페이지 수 계산
+4) 페이지 순회하며 데이터 수집  →        insert_records() → PostgreSQL
+5) 0.3초 대기 후 다음 페이지
+```
+
+### 7-2. API 호출 (fetch_data.py)
+
+**API 설정값:**
+
+```python
+API_BASE = "https://api.odcloud.kr/api/ApplyhomeInfoDetailSvc/v1"
+ENDPOINT = "/getAPTLttotPblancDetail"
+SERVICE_KEY = "e7076445bae090b5d44086f596241353727d4d7ff43604faf560bdecf99d37fe"
+PER_PAGE = 100  # 한 번에 가져올 건수
+```
+
+**단일 페이지 호출 함수:**
+
+```python
+def fetch_page(page: int) -> dict:
+    url = f"{API_BASE}{ENDPOINT}"
+    params = {
+        "page": page,
+        "perPage": PER_PAGE,
+        "serviceKey": SERVICE_KEY,
+    }
+    resp = httpx.get(url, params=params, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+```
+
+- `httpx.get()`으로 GET 요청을 보냄
+- 쿼리 파라미터: `page`(페이지 번호), `perPage`(페이지당 건수), `serviceKey`(인증키)
+- 타임아웃 30초, 응답 실패 시 예외 발생 (`raise_for_status`)
+
+**API 응답 구조 (JSON):**
+
+```json
+{
+  "currentCount": 100,
+  "data": [
+    {
+      "HOUSE_MANAGE_NO": "2024000001",
+      "PBLANC_NO": "2024000001",
+      "HOUSE_NM": "○○아파트",
+      ...
+    },
+    ...
+  ],
+  "matchCount": 2644,
+  "page": 1,
+  "perPage": 100,
+  "totalCount": 2644
+}
+```
+
+> 주의: API 응답의 키는 **대문자** (예: `HOUSE_MANAGE_NO`)이고, DB 컬럼은 **소문자** (예: `house_manage_no`)입니다.
+
+**전체 데이터 수집 함수:**
+
+```python
+def fetch_all():
+    create_table()  # 1) 테이블이 없으면 생성
+
+    # 2) 첫 페이지 호출로 전체 건수 파악
+    first = fetch_page(1)
+    total_count = first.get("totalCount", 0)  # 예: 2644
+
+    data = first.get("data", [])
+    total_inserted = insert_records(data)  # 첫 페이지 데이터 저장
+
+    # 3) 전체 페이지 수 계산 (올림 나눗셈)
+    total_pages = (total_count + PER_PAGE - 1) // PER_PAGE  # 예: 27페이지
+
+    # 4) 2페이지부터 마지막 페이지까지 순회
+    for page in range(2, total_pages + 1):
+        result = fetch_page(page)
+        page_data = result.get("data", [])
+        count = insert_records(page_data)  # DB에 저장
+        total_inserted += count
+
+        time.sleep(0.3)  # 5) Rate Limit 방지 (0.3초 대기)
+```
+
+- **1단계**: DB 테이블이 없으면 자동 생성
+- **2단계**: 1페이지를 먼저 호출하여 `totalCount`(전체 건수)를 확인
+- **3단계**: `totalCount ÷ 100`으로 전체 페이지 수 계산 (올림 나눗셈)
+- **4단계**: 2페이지~마지막 페이지까지 반복 호출하며 DB에 저장
+- **5단계**: 각 호출 사이 0.3초 대기 (공공데이터포털 Rate Limit 방지)
+- 에러 발생 시 해당 페이지를 건너뛰고 다음 페이지로 진행
+
+### 7-3. DB 저장 (database.py)
+
+**테이블 생성:**
+
+```python
+def create_table():
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS apt_lttot_pblanc_detail (
+            id SERIAL PRIMARY KEY,
+            house_manage_no VARCHAR(40),
+            pblanc_no VARCHAR(40),
+            house_nm VARCHAR(200),
+            ...  -- 총 49개 컬럼
+            UNIQUE(house_manage_no, pblanc_no)
+        );
+    """)
+```
+
+- `CREATE TABLE IF NOT EXISTS`: 이미 존재하면 무시
+- `UNIQUE(house_manage_no, pblanc_no)`: 주택관리번호 + 공고번호 조합으로 중복 방지
+
+**대문자 → 소문자 키 매핑:**
+
+```python
+COLUMN_NAMES = [
+    "house_manage_no", "pblanc_no", "house_nm", "house_secd", ...
+]
+
+for record in records:
+    row = {}
+    for col in COLUMN_NAMES:
+        val = record.get(col.upper())  # "house_manage_no" → "HOUSE_MANAGE_NO"로 조회
+        row[col] = val
+```
+
+- API 응답의 키는 대문자 (`HOUSE_MANAGE_NO`)
+- DB 컬럼은 소문자 (`house_manage_no`)
+- `col.upper()`로 변환하여 API 응답에서 값을 추출한 뒤, 소문자 키로 저장
+
+**UPSERT (삽입 or 갱신):**
+
+```python
+query = f"""
+    INSERT INTO apt_lttot_pblanc_detail ({col_names})
+    VALUES ({placeholders})
+    ON CONFLICT (house_manage_no, pblanc_no)
+    DO UPDATE SET {update_set};
+"""
+```
+
+- `INSERT ... ON CONFLICT ... DO UPDATE`: PostgreSQL의 UPSERT 구문
+- 동일한 `(house_manage_no, pblanc_no)` 조합이 이미 있으면 → 기존 레코드를 **갱신**
+- 없으면 → 새 레코드를 **삽입**
+- 이 방식 덕분에 `fetch_data.py`를 여러 번 실행해도 데이터가 중복되지 않고, 변경된 데이터는 자동으로 최신 값으로 갱신됨
+
+### 7-4. 수집 결과 예시
+
+```
+$ python fetch_data.py
+
+Table ready.
+Fetching page 1 ...
+Total records available: 2644
+Page 1: 100 records fetched, 100 upserted.
+Total pages to fetch: 27
+Fetching page 2/27 ...
+  -> 100 records fetched, 100 upserted. (Total: 200)
+Fetching page 3/27 ...
+  -> 100 records fetched, 100 upserted. (Total: 300)
+...
+Fetching page 27/27 ...
+  -> 44 records fetched, 44 upserted. (Total: 2644)
+
+Done! Total records upserted: 2644
+```
+
+## 8. 실행 방법
 
 ```bash
 # 1. 의존성 설치
@@ -160,7 +338,7 @@ python main.py
 # → http://localhost:8001 에서 확인
 ```
 
-## 8. 현재 상태
+## 9. 현재 상태
 
 - DB 수집: 2,644건 저장 완료
 - 웹 표시: 49개 필드 전체 표시
