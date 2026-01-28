@@ -1,4 +1,3 @@
-# cheongyak3_APItoDB
 # 프로젝트 브리핑: 청약홈 APT 분양정보 API-to-DB-to-Web
 
 ## 1. 프로젝트 개요
