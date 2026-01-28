@@ -93,6 +93,7 @@ cheongyak3_APItoDB/
 | 기타 | mvn_prearnge_ym, nsprc_nm, pblanc_url 등 | 6 |
 
 ## 6. 전체 49개 컬럼 목록
+(임의 선정한 하나의 API 데이터이며, 모든 API 제공 정보는 매뉴얼 확인 필요)
 
 | # | DB 컬럼명 | 한글명 |
 |---|-----------|--------|
