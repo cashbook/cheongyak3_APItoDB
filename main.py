@@ -42,19 +42,27 @@ def index(
     cur.execute(
         f"""
         SELECT
-            house_manage_no, pblanc_no, house_nm, house_secd_nm,
-            house_dtl_secd_nm, rent_secd_nm, subscrpt_area_code_nm,
-            hssply_adres, tot_suply_hshldco, rcrit_pblanc_de,
+            house_manage_no, pblanc_no, house_nm,
+            house_secd, house_secd_nm,
+            house_dtl_secd, house_dtl_secd_nm,
+            rent_secd, rent_secd_nm,
+            subscrpt_area_code, subscrpt_area_code_nm,
+            hssply_zip, hssply_adres,
+            tot_suply_hshldco, rcrit_pblanc_de, nsprc_nm,
             rcept_bgnde, rcept_endde,
             spsply_rcept_bgnde, spsply_rcept_endde,
             gnrl_rnk1_crsparea_rcptde, gnrl_rnk1_crsparea_endde,
+            gnrl_rnk1_etc_gg_rcptde, gnrl_rnk1_etc_gg_endde,
             gnrl_rnk1_etc_area_rcptde, gnrl_rnk1_etc_area_endde,
             gnrl_rnk2_crsparea_rcptde, gnrl_rnk2_crsparea_endde,
+            gnrl_rnk2_etc_gg_rcptde, gnrl_rnk2_etc_gg_endde,
             gnrl_rnk2_etc_area_rcptde, gnrl_rnk2_etc_area_endde,
             przwner_presnatn_de, cntrct_cncls_bgnde, cntrct_cncls_endde,
-            hmpg_adres, cnstrct_entrps_nm, bsns_mby_nm,
+            hmpg_adres, cnstrct_entrps_nm, mdhs_telno, bsns_mby_nm,
             mvn_prearnge_ym, speclt_rdn_earth_at, mdat_trget_area_secd,
-            parcprc_uls_at, imprmn_bsns_at, mdhs_telno,
+            parcprc_uls_at, imprmn_bsns_at,
+            public_house_earth_at, lrscl_bldlnd_at,
+            npln_prvopr_public_house_at, public_house_spclm_applc_apt,
             pblanc_url
         FROM apt_lttot_pblanc_detail
         {where_clause}
@@ -66,18 +74,27 @@ def index(
     rows = cur.fetchall()
 
     columns = [
-        "주택관리번호", "공고번호", "주택명", "주택구분", "주택상세구분",
-        "분양구분", "공급지역", "공급위치", "공급규모(세대)", "모집공고일",
+        "주택관리번호", "공고번호", "주택명",
+        "주택구분코드", "주택구분",
+        "주택상세구분코드", "주택상세구분",
+        "분양구분코드", "분양구분",
+        "공급지역코드", "공급지역",
+        "공급우편번호", "공급위치",
+        "공급규모(세대)", "모집공고일", "분양가격비고",
         "청약접수시작일", "청약접수종료일",
         "특별공급접수시작", "특별공급접수종료",
         "1순위해당지역시작", "1순위해당지역종료",
+        "1순위경기지역시작", "1순위경기지역종료",
         "1순위기타지역시작", "1순위기타지역종료",
         "2순위해당지역시작", "2순위해당지역종료",
+        "2순위경기지역시작", "2순위경기지역종료",
         "2순위기타지역시작", "2순위기타지역종료",
         "당첨자발표일", "계약시작일", "계약종료일",
-        "홈페이지", "건설업체(시공사)", "사업주체(시행사)",
+        "홈페이지", "건설업체(시공사)", "문의처", "사업주체(시행사)",
         "입주예정월", "투기과열지구", "조정대상지역",
-        "분양가상한제", "정비사업", "문의처",
+        "분양가상한제", "정비사업",
+        "공공주택지구", "대규모택지개발지구",
+        "수도권내민영공공주택지구", "공공주택특별법적용",
         "모집공고URL",
     ]
 
